@@ -11,7 +11,7 @@ from flask import Flask
 import telebot
 from telebot import types
 
-# 1. Initialize Flask Keep-Alive Server for Render Free Tier
+# 1. Initialize Flask Keep-Alive Server for Cloud Hosting
 app = Flask(__name__)
 
 @app.route('/')
@@ -23,7 +23,10 @@ def run_flask():
     app.run(host="0.0.0.0", port=port)
 
 # 2. Initialize Telegram Bot
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8864252071:AAHtJWy7aUcPiHVtMClFD-l14X1dAH7VGqo")
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+if not TELEGRAM_TOKEN:
+    raise ValueError("TELEGRAM_TOKEN environment variable not set!")
+
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 user_pools = {}
@@ -201,16 +204,20 @@ def handle_range(call):
 def send_welcome(message):
     bot.reply_to(message, "⚡ *Cloud Stats Bot Online*\n\nSend your match list (`Team A vs Team B`), and I will cook your accumulator using statistical expected goals.", parse_mode="Markdown")
 
-if __name__ == "__main__":
-    # Start Flask web server in a separate background thread
-    t = threading.Thread(target=run_flask)
-    t.daemon = True
-    t.start()
-    
-    print("Cloud Web Server & Bot Polling Active...")
+# 3. Background Thread for Telegram Polling (Crucial for Gunicorn)
+def start_telegram_polling():
     while True:
         try:
+            print("Starting Telegram bot polling...")
             bot.infinity_polling(timeout=30, long_polling_timeout=10)
         except Exception as e:
             print(f"Polling error: {e}. Retrying...")
             time.sleep(5)
+
+polling_thread = threading.Thread(target=start_telegram_polling)
+polling_thread.daemon = True
+polling_thread.start()
+
+if __name__ == "__main__":
+    run_flask()
+    
